@@ -206,6 +206,12 @@ class _CatalogState extends State<Catalog> {
                   SizedBox(height: 3),
                   Text('تواصل معنا عبر الديسكورد', style: TextStyle(color: Colors.black87, fontSize: 12)),
                 ])),
+                Icon(Icons.chevron_left, color: Colors.black),
+              ]),
+            ),
+          ),
+        ),
+      ])),
       Expanded(child: Firebase.apps.isEmpty
         ? const Center(child: Text('يجب ربط Firebase لعرض المنشورات'))
         : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
