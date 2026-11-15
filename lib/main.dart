@@ -11,6 +11,54 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import 'package:audioplayers/audioplayers.dart';
 
+class StoreAds {
+  static const unitId = 'ca-app-pub-5686236495411982/8775199249';
+  static DateTime? lastShown;
+  static bool busy = false;
+  static Future<void> showThen(Future<void> Function() action) async {
+    if (busy || (lastShown != null &&
+        DateTime.now().difference(lastShown!) < const Duration(seconds: 90))) {
+      await action();
+      return;
+    }
+    busy = true;
+    var done = false;
+    Future<void> proceed() async {
+      if (done) return;
+      done = true;
+      busy = false;
+      await action();
+    }
+    try {
+      Future<void>.delayed(const Duration(seconds: 8), proceed);
+      await InterstitialAd.load(
+        adUnitId: unitId,
+        request: const AdRequest(),
+        adLoadCallback: InterstitialAdLoadCallback(
+          onAdLoaded: (ad) {
+            if (done) { ad.dispose(); return; }
+            ad.fullScreenContentCallback = FullScreenContentCallback(
+              onAdShowedFullScreenContent: (_) => lastShown = DateTime.now(),
+              onAdDismissedFullScreenContent: (ad) {
+                ad.dispose();
+                proceed();
+              },
+              onAdFailedToShowFullScreenContent: (ad, error) {
+                ad.dispose();
+                proceed();
+              },
+            );
+            try { ad.show(); } catch (_) { ad.dispose(); proceed(); }
+          },
+          onAdFailedToLoad: (error) => proceed(),
+        ),
+      );
+    } catch (_) {
+      await proceed();
+    }
+  }
+}
+
 const orange = Color(0xffff792d);
 const ownerUid = '0tIk0W8QrJZLYwORAwGyrZHhndC2';
 const ownerEmail = 'omarayad83@gmail.com';
@@ -29,7 +77,7 @@ Future<void> main() async {
     ));
   }
   runApp(const App());
-  // Stage 1: initialize the test ads SDK after the first frame; show no ads.
+  // Initialize AdMob after the first frame; failures must never block startup.
   WidgetsBinding.instance.addPostFrameCallback((_) {
     Future<void>(() async {
       try {
@@ -211,7 +259,7 @@ class _CatalogState extends State<Catalog> {
               itemBuilder: (context, index) {
                 final d = posts[index].data();
                 return Card(clipBehavior: Clip.antiAlias, child: InkWell(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: TextDirection.rtl, child: Details(data: d)))),
+                  onTap: () => StoreAds.showThen(() async { if (context.mounted) { await Navigator.push(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: TextDirection.rtl, child: Details(data: d)))); } }),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Expanded(child: cover(d['imageUrl']?.toString() ?? '', d['imageBase64']?.toString())),
                     Padding(padding: const EdgeInsets.all(10), child: Text(d['title']?.toString() ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold))),
@@ -251,7 +299,7 @@ class Details extends StatelessWidget {
       const SizedBox(height: 12),
       Text(data['description']?.toString() ?? ''),
       const SizedBox(height: 22),
-      FilledButton.icon(icon: const Icon(Icons.download), label: const Text('تحميل'), onPressed: () async {
+      FilledButton.icon(icon: const Icon(Icons.download), label: const Text('تحميل'), onPressed: () => StoreAds.showThen(() async {
         final raw = data['url']?.toString() ?? '';
         final uri = Uri.tryParse(raw);
         if (uri != null && (uri.scheme == 'https' || uri.scheme == 'http')) {
@@ -259,7 +307,7 @@ class Details extends StatelessWidget {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح رابط التحميل')));
           }
         }
-      }),
+      })),
     ]),
   );
 }
