@@ -1,0 +1,91 @@
+name: Build OMAR STORE V2 APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Prepare intro video asset
+        run: |
+          mkdir -p assets
+          curl -fL --retry 3 -o assets/intro.mp4 https://raw.githubusercontent.com/Omar6373/omar/dfb9c333/OMAR_GAMING_no_capcut.mp4
+          curl -fL --retry 3 -o assets/welcome.png https://raw.githubusercontent.com/Omar6373/omar/dfb9c333/file_00000000f0bc82108c6710992070709a.png
+      - name: Generate welcome entry chime
+        run: |
+          mkdir -p assets/sounds
+          python3 - <<'PY'
+          import math, wave, struct
+          rate=22050
+          duration=.48
+          with wave.open('assets/sounds/enter.wav','wb') as out:
+              out.setnchannels(1);out.setsampwidth(2);out.setframerate(rate)
+              frames=[]
+              for i in range(int(rate*duration)):
+                  t=i/rate
+                  env=(1-math.exp(-35*t))*math.exp(-6*t)
+                  freq=660 if t<.15 else (880 if t<.32 else 1100)
+                  value=int(11000*env*(math.sin(2*math.pi*freq*t)+.20*math.sin(4*math.pi*freq*t)))
+                  frames.append(struct.pack('<h',max(-32768,min(32767,value))))
+              out.writeframes(b''.join(frames))
+          PY
+      - name: Generate Android project
+        run: flutter create --platforms android --org com.omarayad .
+      - name: Enable Android internet access
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          permission = '<uses-permission android:name="android.permission.INTERNET"/>'
+          if permission not in s:
+              s = s.replace('<application', permission + '\n    <application', 1)
+          import re
+          s = re.sub(r'android:label="[^"]*"', 'android:label="OMAR STORE"', s, count=1)
+          p.write_text(s)
+          PY
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Restore Firebase configuration
+        run: |
+          mkdir -p firebase
+          curl -fL --retry 3 -o firebase/google-services.json https://raw.githubusercontent.com/Omar6373/omar/dfb9c333/firebase/google-services.json
+      - name: Read Firebase Android config
+        run: |
+          echo "FIREBASE_API_KEY=$(jq -r '.client[0].api_key[0].current_key' firebase/google-services.json)" >> "$GITHUB_ENV"
+          echo "FIREBASE_APP_ID=$(jq -r '.client[0].client_info.mobilesdk_app_id' firebase/google-services.json)" >> "$GITHUB_ENV"
+          echo "FIREBASE_SENDER_ID=$(jq -r '.project_info.project_number' firebase/google-services.json)" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT_ID=$(jq -r '.project_info.project_id' firebase/google-services.json)" >> "$GITHUB_ENV"
+          echo "FIREBASE_STORAGE_BUCKET=$(jq -r '.project_info.storage_bucket' firebase/google-services.json)" >> "$GITHUB_ENV"
+      - name: Build release APK
+        run: |
+          flutter build apk --release \
+            --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" \
+            --dart-define=FIREBASE_APP_ID="$FIREBASE_APP_ID" \
+            --dart-define=FIREBASE_SENDER_ID="$FIREBASE_SENDER_ID" \
+            --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID" \
+            --dart-define=FIREBASE_STORAGE_BUCKET="$FIREBASE_STORAGE_BUCKET"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OMAR-STORE-V2-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+      - name: Publish direct APK download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk OMAR-STORE-V2.apk
+          if ! gh release view v2.0.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create v2.0.0 OMAR-STORE-V2.apk \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "OMAR STORE v2.0.0" \
+              --notes "تطبيق OMAR STORE للأندرويد مع فيديو الافتتاح. تنزيل مباشر APK."
+          else
+            gh release upload v2.0.0 OMAR-STORE-V2.apk --clobber --repo "$GITHUB_REPOSITORY"
+          fi
