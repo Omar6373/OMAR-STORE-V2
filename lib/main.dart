@@ -182,7 +182,30 @@ class _CatalogState extends State<Catalog> {
         ], selected: {type}, onSelectionChanged: (v) => setState(() => type = v.first)),
         const SizedBox(height: 14),
         TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'ابحث عن لعبة أو برنامج', border: OutlineInputBorder()), onChanged: (v) => setState(() => query = v.toLowerCase())),
-      ])),
+        const SizedBox(height: 12),
+        Material(
+          color: orange,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () async {
+              final uri = Uri.parse('https://discord.gg/PZkbT3ZN5');
+              if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تعذر فتح رابط الديسكورد')),
+                );
+              }
+            },
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(children: [
+                Icon(Icons.campaign_outlined, color: Colors.black, size: 28),
+                SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('تريد تعلن داخل OMAR STORE؟', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+                  SizedBox(height: 3),
+                  Text('تواصل معنا عبر الديسكورد', style: TextStyle(color: Colors.black87, fontSize: 12)),
+                ])),
       Expanded(child: Firebase.apps.isEmpty
         ? const Center(child: Text('يجب ربط Firebase لعرض المنشورات'))
         : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
