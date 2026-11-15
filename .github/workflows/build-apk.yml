@@ -60,7 +60,7 @@ jobs:
           from pathlib import Path
           p = Path('android/app/src/main/AndroidManifest.xml')
           s = p.read_text()
-          metadata = '<meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713" />'
+          metadata = '<meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-5686236495411982~1922016289" />'
           if 'com.google.android.gms.ads.APPLICATION_ID' not in s:
               s = s.replace('<application', '<application', 1)
               i = s.index('>', s.index('<application'))
