@@ -12,51 +12,8 @@ import 'package:video_player/video_player.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 class StoreAds {
-  static const unitId = 'ca-app-pub-5686236495411982/8775199249';
-  static DateTime? lastShown;
-  static bool busy = false;
-  static Future<void> showThen(Future<void> Function() action) async {
-    if (busy || (lastShown != null &&
-        DateTime.now().difference(lastShown!) < const Duration(seconds: 90))) {
-      await action();
-      return;
-    }
-    busy = true;
-    var done = false;
-    Future<void> proceed() async {
-      if (done) return;
-      done = true;
-      busy = false;
-      await action();
-    }
-    try {
-      Future<void>.delayed(const Duration(seconds: 8), proceed);
-      await InterstitialAd.load(
-        adUnitId: unitId,
-        request: const AdRequest(),
-        adLoadCallback: InterstitialAdLoadCallback(
-          onAdLoaded: (ad) {
-            if (done) { ad.dispose(); return; }
-            ad.fullScreenContentCallback = FullScreenContentCallback(
-              onAdShowedFullScreenContent: (_) => lastShown = DateTime.now(),
-              onAdDismissedFullScreenContent: (ad) {
-                ad.dispose();
-                proceed();
-              },
-              onAdFailedToShowFullScreenContent: (ad, error) {
-                ad.dispose();
-                proceed();
-              },
-            );
-            try { ad.show(); } catch (_) { ad.dispose(); proceed(); }
-          },
-          onAdFailedToLoad: (error) => proceed(),
-        ),
-      );
-    } catch (_) {
-      await proceed();
-    }
-  }
+  // Startup isolation: navigation and downloads remain functional.
+  static Future<void> showThen(Future<void> Function() action) => action();
 }
 
 const orange = Color(0xffff792d);
@@ -77,17 +34,9 @@ Future<void> main() async {
     ));
   }
   runApp(const App());
-  // Initialize AdMob after the first frame; failures must never block startup.
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    Future<void>(() async {
-      try {
-        await MobileAds.instance.initialize().timeout(const Duration(seconds: 8));
-        debugPrint('AdMob test SDK initialized');
-      } catch (e) {
-        debugPrint('AdMob test SDK init failed: $e');
-      }
-    });
-  });
+  // Diagnostic build: keep the AdMob SDK installed, but do not initialize it
+  // or request ads until we confirm Android startup works on the device.
+
 }
 class App extends StatelessWidget {
   const App({super.key});
