@@ -51,6 +51,20 @@ jobs:
           s = re.sub(r'android:label="[^"]*"', 'android:label="OMAR STORE"', s, count=1)
           p.write_text(s)
           PY
+      - name: Configure AdMob test application ID
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          tag = '<meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/>'
+          if 'com.google.android.gms.ads.APPLICATION_ID' not in s:
+              s = s.replace('<application', '<application', 1)
+              start = s.index('<application')
+              end = s.index('>', start)
+              s = s[:end+1] + '\\n        ' + tag + s[end+1:]
+          p.write_text(s)
+          PY
       - name: Install dependencies
         run: flutter pub get
       - name: Restore Firebase configuration
