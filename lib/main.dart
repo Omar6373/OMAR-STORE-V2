@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,6 +10,50 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import 'package:audioplayers/audioplayers.dart';
+
+
+class StoreAds {
+  static const testUnit = 'ca-app-pub-3940256099942544/1033173712';
+  static DateTime? lastShown;
+  static bool busy = false;
+  static bool initialized = false;
+  static Future<void> showThen(Future<void> Function() action) async {
+    if (busy || (lastShown != null && DateTime.now().difference(lastShown!) < const Duration(seconds: 90))) {
+      await action(); return;
+    }
+    busy = true;
+    bool finished = false;
+    Future<void> continueAction() async {
+      if (finished) return;
+      finished = true;
+      busy = false;
+      await action();
+    }
+    try {
+      if (!initialized) {
+        await MobileAds.instance.initialize().timeout(const Duration(seconds: 6));
+        initialized = true;
+      }
+      Future<void>.delayed(const Duration(seconds: 10), continueAction);
+      await InterstitialAd.load(
+        adUnitId: testUnit,
+        request: const AdRequest(),
+        adLoadCallback: InterstitialAdLoadCallback(
+          onAdLoaded: (ad) {
+            if (finished) { ad.dispose(); return; }
+            ad.fullScreenContentCallback = FullScreenContentCallback(
+              onAdShowedFullScreenContent: (_) => lastShown = DateTime.now(),
+              onAdDismissedFullScreenContent: (ad) { ad.dispose(); continueAction(); },
+              onAdFailedToShowFullScreenContent: (ad, error) { ad.dispose(); continueAction(); },
+            );
+            try { ad.show(); } catch (_) { ad.dispose(); continueAction(); }
+          },
+          onAdFailedToLoad: (_) { continueAction(); },
+        ),
+      );
+    } catch (_) { await continueAction(); }
+  }
+}
 
 const orange = Color(0xffff792d);
 const ownerUid = '0tIk0W8QrJZLYwORAwGyrZHhndC2';
@@ -199,7 +244,7 @@ class _CatalogState extends State<Catalog> {
               itemBuilder: (context, index) {
                 final d = posts[index].data();
                 return Card(clipBehavior: Clip.antiAlias, child: InkWell(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: TextDirection.rtl, child: Details(data: d)))),
+                  onTap: () => StoreAds.showThen(() async { if (context.mounted) { await Navigator.push(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: TextDirection.rtl, child: Details(data: d)))); } }),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Expanded(child: cover(d['imageUrl']?.toString() ?? '', d['imageBase64']?.toString())),
                     Padding(padding: const EdgeInsets.all(10), child: Text(d['title']?.toString() ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold))),
@@ -239,7 +284,7 @@ class Details extends StatelessWidget {
       const SizedBox(height: 12),
       Text(data['description']?.toString() ?? ''),
       const SizedBox(height: 22),
-      FilledButton.icon(icon: const Icon(Icons.download), label: const Text('تحميل'), onPressed: () async {
+      FilledButton.icon(icon: const Icon(Icons.download), label: const Text('تحميل'), onPressed: () => StoreAds.showThen(() async {
         final raw = data['url']?.toString() ?? '';
         final uri = Uri.tryParse(raw);
         if (uri != null && (uri.scheme == 'https' || uri.scheme == 'http')) {
@@ -247,7 +292,7 @@ class Details extends StatelessWidget {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح رابط التحميل')));
           }
         }
-      }),
+      })),
     ]),
   );
 }
