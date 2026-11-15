@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -28,6 +29,17 @@ Future<void> main() async {
     ));
   }
   runApp(const App());
+  // Stage 1: initialize the test ads SDK after the first frame; show no ads.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    Future<void>(() async {
+      try {
+        await MobileAds.instance.initialize().timeout(const Duration(seconds: 8));
+        debugPrint('AdMob test SDK initialized');
+      } catch (e) {
+        debugPrint('AdMob test SDK init failed: $e');
+      }
+    });
+  });
 }
 class App extends StatelessWidget {
   const App({super.key});
