@@ -62,7 +62,7 @@ jobs:
               s = s.replace('<application', '<application', 1)
               start = s.index('<application')
               end = s.index('>', start)
-              s = s[:end+1] + '\\n        ' + tag + s[end+1:]
+              s = s[:end+1] + '\n        ' + tag + s[end+1:]
           p.write_text(s)
           PY
       - name: Install dependencies
