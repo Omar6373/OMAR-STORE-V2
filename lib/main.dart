@@ -228,7 +228,7 @@ class _CatalogState extends State<Catalog> {
               itemBuilder: (context, index) {
                 final d = posts[index].data();
                 return Card(clipBehavior: Clip.antiAlias, child: InkWell(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: TextDirection.rtl, child: Details(data: d)))),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => Directionality(textDirection: TextDirection.rtl, child: Details(data: d, postId: posts[index].id)))),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Expanded(child: cover(d['imageUrl']?.toString() ?? '', d['imageBase64']?.toString())),
                     Padding(padding: const EdgeInsets.all(10), child: Text(d['title']?.toString() ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold))),
@@ -258,7 +258,8 @@ Widget cover(String url, [String? imageBase64]) {
 }
 class Details extends StatelessWidget {
   final Map<String, dynamic> data;
-  const Details({super.key, required this.data});
+  final String postId;
+  const Details({super.key, required this.data, required this.postId});
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(data['title']?.toString() ?? 'التفاصيل')),
     body: ListView(padding: const EdgeInsets.all(18), children: [
@@ -267,6 +268,8 @@ class Details extends StatelessWidget {
       Text(data['title']?.toString() ?? '', style: Theme.of(context).textTheme.headlineMedium),
       const SizedBox(height: 12),
       Text(data['description']?.toString() ?? ''),
+      const SizedBox(height: 22),
+      ReviewPanel(postId: postId),
       const SizedBox(height: 22),
       FilledButton.icon(icon: const Icon(Icons.download), label: const Text('تحميل'), onPressed: () async {
         final raw = data['url']?.toString() ?? '';
@@ -279,6 +282,104 @@ class Details extends StatelessWidget {
       }),
     ]),
   );
+}
+
+class ReviewPanel extends StatefulWidget {
+  final String postId;
+  const ReviewPanel({super.key, required this.postId});
+  @override State<ReviewPanel> createState() => _ReviewPanelState();
+}
+class _ReviewPanelState extends State<ReviewPanel> {
+  final name = TextEditingController(), comment = TextEditingController();
+  int stars = 5;
+  bool busy = false;
+  String? uid;
+  String? message;
+  @override void initState() { super.initState(); _init(); }
+  Future<void> _init() async {
+    try {
+      final auth = FirebaseAuth.instance;
+      final user = auth.currentUser ?? (await auth.signInAnonymously()).user;
+      if (mounted) setState(() => uid = user?.uid);
+    } catch (_) {
+      if (mounted) setState(() => message = 'تعذر تفعيل التعليقات. تأكد من تفعيل تسجيل الدخول المجهول في Firebase.');
+    }
+  }
+  @override void dispose() { name.dispose(); comment.dispose(); super.dispose(); }
+  Future<void> _save() async {
+    final n = name.text.trim(), c = comment.text.trim();
+    if (uid == null || n.length < 2 || n.length > 30 || c.length < 3 || c.length > 500) {
+      setState(() => message = 'الاسم 2-30 حرف والتعليق 3-500 حرف'); return;
+    }
+    setState(() { busy = true; message = null; });
+    try {
+      await FirebaseFirestore.instance.collection('posts').doc(widget.postId)
+        .collection('reviews').doc(uid).set({
+          'uid': uid, 'name': n, 'comment': c, 'stars': stars,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      if (mounted) setState(() => message = 'تم حفظ تقييمك وتعليقك');
+    } catch (_) {
+      if (mounted) setState(() => message = 'تعذر الحفظ. يجب السماح بالتقييمات في قواعد Firestore.');
+    } finally { if (mounted) setState(() => busy = false); }
+  }
+  @override Widget build(BuildContext context) {
+    if (Firebase.apps.isEmpty) return const SizedBox.shrink();
+    final ref = FirebaseFirestore.instance.collection('posts').doc(widget.postId).collection('reviews');
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      const Text('التقييمات والتعليقات', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 10),
+      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: ref.snapshots(),
+        builder: (context, snap) {
+          if (snap.hasError) return const Text('تعذر عرض التعليقات، راجع صلاحيات Firebase');
+          if (!snap.hasData) return const LinearProgressIndicator();
+          final docs = snap.data!.docs;
+          final total = docs.fold<int>(0, (sum, d) => sum + ((d.data()['stars'] as num?)?.toInt() ?? 0));
+          final mine = uid == null ? null : docs.where((d) => d.id == uid).firstOrNull;
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(docs.isEmpty ? 'ماكو تقييمات بعد' : '⭐ ${(total / docs.length).toStringAsFixed(1)} / 5  •  ${docs.length} تقييم'),
+            const SizedBox(height: 12),
+            if (uid == null) const Text('جاري تجهيز التعليقات...'),
+            if (uid != null) ...[
+              if (mine != null)
+                Padding(padding: const EdgeInsets.only(bottom: 8),
+                  child: Text('سبق وقيّمت هذه اللعبة. تكدر تعدّل تقييمك وتعليقك.', style: TextStyle(color: orange))),
+              TextField(controller: name, maxLength: 30, decoration: const InputDecoration(labelText: 'اسمك')),
+              Wrap(spacing: 0, children: List.generate(5, (i) => IconButton(
+                tooltip: '${i+1} نجوم',
+                onPressed: () => setState(() => stars = i + 1),
+                icon: Icon(i < stars ? Icons.star : Icons.star_border, color: orange),
+              ))),
+              TextField(controller: comment, maxLength: 500, maxLines: 3,
+                decoration: const InputDecoration(labelText: 'تعليقك على اللعبة')),
+              FilledButton.icon(onPressed: busy ? null : _save,
+                icon: const Icon(Icons.rate_review),
+                label: Text(mine == null ? 'نشر التقييم والتعليق' : 'حفظ التعديل')),
+            ],
+            if (message != null) Padding(padding: const EdgeInsets.all(8), child: Text(message!, style: const TextStyle(color: orange))),
+            const Divider(height: 28),
+            ...docs.map((d) {
+              final v = d.data();
+              final mineReview = d.id == uid;
+              return Card(child: ListTile(
+                title: Text(v['name']?.toString() ?? 'مستخدم'),
+                subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('★ ' * (((v['stars'] as num?)?.toInt() ?? 0).clamp(0, 5)), style: const TextStyle(color: orange)),
+                  Text(v['comment']?.toString() ?? ''),
+                ]),
+                trailing: mineReview ? TextButton(onPressed: () {
+                  name.text = v['name']?.toString() ?? '';
+                  comment.text = v['comment']?.toString() ?? '';
+                  setState(() => stars = ((v['stars'] as num?)?.toInt() ?? 5).clamp(1, 5));
+                }, child: const Text('تعديل')) : null,
+              ));
+            }),
+          ]);
+        },
+      ),
+    ]);
+  }
 }
 class Admin extends StatefulWidget {
   const Admin({super.key});
