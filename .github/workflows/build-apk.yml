@@ -93,3 +93,20 @@ jobs:
           else
             gh release upload v2.0.0 OMAR-STORE-V2.apk --clobber --repo "$GITHUB_REPOSITORY"
           fi
+
+      - name: Publish ratings test APK direct download
+        if: github.ref == 'refs/heads/ratings-comments-test'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk OMAR-STORE-RATINGS-TEST.apk
+          if ! gh release view ratings-test --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create ratings-test OMAR-STORE-RATINGS-TEST.apk \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --prerelease \
+              --title "OMAR STORE Ratings Test" \
+              --notes "نسخة تجريبية للتقييمات والتعليقات. تتطلب إعداد Firebase."
+          else
+            gh release upload ratings-test OMAR-STORE-RATINGS-TEST.apk --clobber --repo "$GITHUB_REPOSITORY"
+          fi
