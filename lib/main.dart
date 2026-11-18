@@ -365,7 +365,7 @@ class _ReviewPanelState extends State<ReviewPanel> {
               return Card(child: ListTile(
                 title: Text(v['name']?.toString() ?? 'مستخدم'),
                 subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('★ ' * (((v['stars'] as num?)?.toInt() ?? 0).clamp(0, 5)), style: const TextStyle(color: orange)),
+                  Text(List.filled(((v['stars'] as num?)?.toInt() ?? 0).clamp(0, 5), '★').join(' '), style: const TextStyle(color: orange)),
                   Text(v['comment']?.toString() ?? ''),
                 ]),
                 trailing: mineReview ? TextButton(onPressed: () {
