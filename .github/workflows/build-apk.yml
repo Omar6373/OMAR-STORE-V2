@@ -69,17 +69,25 @@ jobs:
           PY
       - name: Install dependencies
         run: flutter pub get
-      - name: Update Start.io Android compile SDK
+      - name: Fix Start.io SDK compile API level
+        if: github.ref == 'refs/heads/startio-ads-test'
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
-          for p in Path.home().glob('.pub-cache/hosted/pub.dev/startapp_sdk-*/android/build.gradle'):
+          matches = list(Path.home().glob('.pub-cache/hosted/pub.dev/startapp_sdk-*/android/build.gradle'))
+          if not matches:
+              raise SystemExit('Start.io Gradle file not found')
+          for p in matches:
               s = p.read_text()
-              s = re.sub(r'compileSdkVersion\\s+\\d+', 'compileSdkVersion 36', s)
-              s = re.sub(r'compileSdk\\s*=\\s*\\d+', 'compileSdk = 36', s)
+              s, count = re.subn(r'compileSdkVersion[^\n]*', 'compileSdkVersion 36', s)
+              if not count:
+                  s, count = re.subn(r'compileSdk\s*=?\s*[^\n]+', 'compileSdk 36', s)
+              if not count:
+                  raise SystemExit(f'compileSdk declaration not found in {p}')
               p.write_text(s)
-              print('Updated:', p)
+              print('Start.io compile SDK set to 36:', p)
+              print('\n'.join(line for line in s.splitlines() if 'compileSdk' in line))
           PY
       - name: Restore Firebase configuration
         run: |
