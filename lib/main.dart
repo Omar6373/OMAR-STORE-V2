@@ -3,6 +3,7 @@ import 'package:startapp_sdk/startapp.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
@@ -28,6 +29,7 @@ Future<void> main() async {
       projectId: projectId, storageBucket: bucket,
     ));
   }
+  await StartAppSdk().setTestAdsEnabled(true);
   runApp(const App());
 }
 class App extends StatelessWidget {
@@ -191,7 +193,9 @@ class _CatalogState extends State<Catalog> {
             borderRadius: BorderRadius.circular(12),
             onTap: () async {
               final uri = Uri.parse('https://discord.gg/PZkbT3ZN5');
-              if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && context.mounted) {
+              await showDownloadAd();
+          if (!context.mounted) return;
+          if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('تعذر فتح رابط الديسكورد')),
                 );
@@ -271,6 +275,8 @@ class Details extends StatelessWidget {
       const SizedBox(height: 12),
       Text(data['description']?.toString() ?? ''),
       const SizedBox(height: 22),
+      const StartIoBanner(),
+      const SizedBox(height: 12),
       ReviewPanel(postId: postId),
       const SizedBox(height: 22),
       FilledButton.icon(icon: const Icon(Icons.download), label: const Text('تحميل'), onPressed: () async {
@@ -532,6 +538,8 @@ class _SupportTicketsState extends State<SupportTickets> {
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('الدعم الفني')),
     body: ListView(padding: const EdgeInsets.all(16), children: [
+      const StartIoBanner(),
+      const SizedBox(height: 12),
       const Text('افتح تذكرة جديدة', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold)),
       const SizedBox(height: 10),
       TextField(controller: subject, maxLength: 100, decoration: const InputDecoration(labelText: 'عنوان المشكلة', border: OutlineInputBorder())),
@@ -632,7 +640,6 @@ class _StartIoBannerState extends State<StartIoBanner> {
   StartAppBannerAd? banner;
   @override void initState() {
     super.initState();
-    sdk.setTestAdsEnabled(true);
     sdk.loadBannerAd(StartAppBannerType.BANNER).then((ad) {
       if (mounted) setState(() => banner = ad);
     }).catchError((Object error) {
@@ -642,4 +649,26 @@ class _StartIoBannerState extends State<StartIoBanner> {
   @override Widget build(BuildContext context) => banner == null
     ? const SizedBox.shrink()
     : SizedBox(height: 55, child: Center(child: StartAppBanner(banner!)));
+}
+
+/// Show an interstitial at the download transition; network controls its close button.
+Future<void> showDownloadAd() async {
+  final sdk = StartAppSdk();
+  StartAppInterstitialAd? ad;
+  final closed = Completer<void>();
+  void finish() {
+    if (!closed.isCompleted) closed.complete();
+  }
+  try {
+    ad = await sdk.loadInterstitialAd(
+      onAdHidden: finish,
+      onAdNotDisplayed: finish,
+    ).timeout(const Duration(seconds: 12));
+    final shown = await ad.show().timeout(const Duration(seconds: 12));
+    if (shown) await closed.future.timeout(const Duration(minutes: 2));
+  } catch (error) {
+    debugPrint('Start.io interstitial unavailable: $error');
+  } finally {
+    ad?.dispose();
+  }
 }
