@@ -1,0 +1,29 @@
+// Add this sibling match INSIDE match /databases/{database}/documents,
+// next to the existing match /posts/{postId}. Do not replace the existing rules.
+match /supportTickets/{ticketId} {
+  allow create: if request.auth != null
+    && request.resource.data.keys().hasOnly(['uid','subject','details','status','reply','createdAt','updatedAt'])
+    && request.resource.data.uid == request.auth.uid
+    && request.resource.data.subject is string
+    && request.resource.data.subject.size() >= 3
+    && request.resource.data.subject.size() <= 100
+    && request.resource.data.details is string
+    && request.resource.data.details.size() >= 10
+    && request.resource.data.details.size() <= 2000
+    && request.resource.data.status == 'open'
+    && request.resource.data.reply == ''
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.updatedAt == request.time;
+  allow read: if request.auth != null
+    && (request.auth.uid == resource.data.uid
+        || request.auth.uid == '0tIk0W8QrJZLYwORAwGyrZHhndC2');
+  allow update: if request.auth != null
+    && request.auth.uid == '0tIk0W8QrJZLYwORAwGyrZHhndC2'
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reply','status','updatedAt'])
+    && request.resource.data.reply is string
+    && request.resource.data.reply.size() <= 2000
+    && request.resource.data.status in ['open','answered','closed']
+    && request.resource.data.updatedAt == request.time;
+  allow delete: if request.auth != null
+    && request.auth.uid == '0tIk0W8QrJZLYwORAwGyrZHhndC2';
+}
