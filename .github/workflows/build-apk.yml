@@ -54,8 +54,39 @@ jobs:
           s = re.sub(r'android:label="[^"]*"', 'android:label="OMAR STORE"', s, count=1)
           p.write_text(s)
           PY
+      - name: Configure Start.io live ads
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          meta = '''<meta-data android:name="com.startapp.sdk.APPLICATION_ID" android:value="210952444" />
+          <meta-data android:name="com.startapp.sdk.RETURN_ADS_ENABLED" android:value="false" />'''
+          s = s.replace('<application', '<application', 1)
+          s = s.replace('</application>', meta + '\n    </application>', 1)
+          p.write_text(s)
+          PY
       - name: Install dependencies
         run: flutter pub get
+      - name: Fix Start.io SDK compile API level
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          matches = list(Path.home().glob('.pub-cache/hosted/pub.dev/startapp_sdk-*/android/build.gradle'))
+          if not matches:
+              raise SystemExit('Start.io Gradle file not found')
+          for p in matches:
+              s = p.read_text()
+              s, count = re.subn(r'compileSdkVersion[^\n]*', 'compileSdkVersion 36', s)
+              if not count:
+                  s, count = re.subn(r'compileSdk\s*=?\s*[^\n]+', 'compileSdk 36', s)
+              if not count:
+                  raise SystemExit(f'compileSdk declaration not found in {p}')
+              p.write_text(s)
+              print('Start.io compile SDK set to 36:', p)
+              print('\n'.join(line for line in s.splitlines() if 'compileSdk' in line))
+          PY
       - name: Restore Firebase configuration
         run: |
           mkdir -p firebase
