@@ -15,6 +15,7 @@ dependencies:
   audioplayers: ^6.1.0
   image_picker: ^1.1.2
   url_launcher: ^6.3.1
+  startapp_sdk: ^1.0.1
 flutter:
   uses-material-design: true
   assets:
