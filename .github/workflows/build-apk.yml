@@ -2,7 +2,7 @@ name: Build OMAR STORE V2 APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, ratings-comments-test]
+    branches: [main, ratings-comments-test, support-tickets-test]
 permissions:
   contents: write
 concurrency:
@@ -109,4 +109,21 @@ jobs:
               --notes "نسخة تجريبية للتقييمات والتعليقات. تتطلب إعداد Firebase."
           else
             gh release upload ratings-test OMAR-STORE-RATINGS-TEST.apk --clobber --repo "$GITHUB_REPOSITORY"
+          fi
+
+      - name: Publish support test APK direct download
+        if: github.ref == 'refs/heads/support-tickets-test'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk OMAR-STORE-SUPPORT-TEST.apk
+          if ! gh release view support-test --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create support-test OMAR-STORE-SUPPORT-TEST.apk \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --prerelease \
+              --title "OMAR STORE Support Test" \
+              --notes "نسخة تجريبية لتذاكر الدعم والتقييمات. تحتاج قواعد Firestore للتذاكر."
+          else
+            gh release upload support-test OMAR-STORE-SUPPORT-TEST.apk --clobber --repo "$GITHUB_REPOSITORY"
           fi
