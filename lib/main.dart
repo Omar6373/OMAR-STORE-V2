@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:startapp_sdk/startapp.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -212,6 +213,7 @@ class _CatalogState extends State<Catalog> {
           ),
         ),
       ])),
+      const StartIoBanner(),
       Expanded(child: Firebase.apps.isEmpty
         ? const Center(child: Text('يجب ربط Firebase لعرض المنشورات'))
         : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -619,4 +621,25 @@ class AdminTickets extends StatelessWidget {
       }).toList());
     },
   );
+}
+
+class StartIoBanner extends StatefulWidget {
+  const StartIoBanner({super.key});
+  @override State<StartIoBanner> createState() => _StartIoBannerState();
+}
+class _StartIoBannerState extends State<StartIoBanner> {
+  final sdk = StartAppSdk();
+  StartAppBannerAd? banner;
+  @override void initState() {
+    super.initState();
+    sdk.setTestAdsEnabled(true);
+    sdk.loadBannerAd(StartAppBannerType.BANNER).then((ad) {
+      if (mounted) setState(() => banner = ad);
+    }).catchError((Object error) {
+      debugPrint('Start.io test banner unavailable: $error');
+    });
+  }
+  @override Widget build(BuildContext context) => banner == null
+    ? const SizedBox.shrink()
+    : SizedBox(height: 55, child: Center(child: StartAppBanner(banner!)));
 }
