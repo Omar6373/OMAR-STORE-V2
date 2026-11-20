@@ -172,7 +172,7 @@ class _CatalogState extends State<Catalog> {
   @override Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(backgroundColor: Colors.black,
       title: const Text('OMAR STORE', style: TextStyle(color: orange, fontWeight: FontWeight.bold)),
-      actions: [IconButton(icon: const Icon(Icons.admin_panel_settings_outlined), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const Admin())))],
+      actions: [IconButton(tooltip: 'الدعم الفني', icon: const Icon(Icons.support_agent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const Directionality(textDirection: TextDirection.rtl, child: SupportTickets())))), IconButton(icon: const Icon(Icons.admin_panel_settings_outlined), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const Admin())))],
     ),
     body: Column(children: [
       Padding(padding: const EdgeInsets.all(14), child: Column(children: [
@@ -460,6 +460,9 @@ class _AdminState extends State<Admin> {
           }, icon: const Icon(Icons.image), label: Text(picked == null ? 'اختيار صورة' : picked!.name)),
           FilledButton(onPressed: busy ? null : publish, child: const Text('نشر')),
           const Divider(height: 36),
+          const Text('تذاكر الدعم', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const AdminTickets(),
+          const Divider(height: 36),
           const Text('المنشورات الحالية', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
             stream: FirebaseFirestore.instance.collection('posts').snapshots(),
@@ -486,4 +489,134 @@ class _AdminState extends State<Admin> {
       ]),
     );
   }
+}
+
+class SupportTickets extends StatefulWidget {
+  const SupportTickets({super.key});
+  @override State<SupportTickets> createState() => _SupportTicketsState();
+}
+class _SupportTicketsState extends State<SupportTickets> {
+  final subject = TextEditingController(), details = TextEditingController();
+  String? uid, error;
+  bool saving = false;
+  @override void initState() { super.initState(); _auth(); }
+  Future<void> _auth() async {
+    try {
+      final a = FirebaseAuth.instance;
+      final u = a.currentUser ?? (await a.signInAnonymously()).user;
+      if (mounted) setState(() => uid = u?.uid);
+    } catch (_) {
+      if (mounted) setState(() => error = 'تعذر الدخول للدعم، تأكد من تفعيل Anonymous في Firebase');
+    }
+  }
+  @override void dispose() { subject.dispose(); details.dispose(); super.dispose(); }
+  Future<void> _create() async {
+    if (uid == null || subject.text.trim().length < 3 || details.text.trim().length < 10) {
+      setState(() => error = 'العنوان 3 أحرف على الأقل والتفاصيل 10 أحرف على الأقل'); return;
+    }
+    setState(() { saving = true; error = null; });
+    try {
+      await FirebaseFirestore.instance.collection('supportTickets').add({
+        'uid': uid, 'subject': subject.text.trim(), 'details': details.text.trim(),
+        'status': 'open', 'reply': '', 'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      subject.clear(); details.clear();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال التذكرة')));
+    } catch (_) {
+      if (mounted) setState(() => error = 'تعذر إرسال التذكرة، تحقق من قواعد Firestore');
+    } finally { if (mounted) setState(() => saving = false); }
+  }
+  @override Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('الدعم الفني')),
+    body: ListView(padding: const EdgeInsets.all(16), children: [
+      const Text('افتح تذكرة جديدة', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 10),
+      TextField(controller: subject, maxLength: 100, decoration: const InputDecoration(labelText: 'عنوان المشكلة', border: OutlineInputBorder())),
+      const SizedBox(height: 8),
+      TextField(controller: details, maxLength: 2000, maxLines: 5, decoration: const InputDecoration(labelText: 'اشرح المشكلة بالتفصيل', border: OutlineInputBorder())),
+      FilledButton.icon(onPressed: saving || uid == null ? null : _create, icon: const Icon(Icons.send), label: const Text('إرسال التذكرة')),
+      if (error != null) Text(error!, style: const TextStyle(color: orange)),
+      const Divider(height: 36),
+      const Text('تذاكري', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold)),
+      if (uid == null) const LinearProgressIndicator(),
+      if (uid != null) StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance.collection('supportTickets').where('uid', isEqualTo: uid).snapshots(),
+        builder: (context, snap) {
+          if (snap.hasError) return const Text('تعذر عرض التذاكر، راجع صلاحيات Firestore');
+          if (!snap.hasData) return const LinearProgressIndicator();
+          if (snap.data!.docs.isEmpty) return const Padding(padding: EdgeInsets.all(14), child: Text('ما عندك تذاكر بعد'));
+          final docs = snap.data!.docs.toList()..sort((a,b) {
+            final x = a.data()['createdAt'] as Timestamp?, y = b.data()['createdAt'] as Timestamp?;
+            return (y?.millisecondsSinceEpoch ?? 0).compareTo(x?.millisecondsSinceEpoch ?? 0);
+          });
+          return Column(children: docs.map((d) {
+            final v = d.data();
+            return Card(child: ExpansionTile(
+              title: Text(v['subject']?.toString() ?? ''),
+              subtitle: Text(v['status'] == 'closed' ? 'مغلقة' : 'مفتوحة', style: const TextStyle(color: orange)),
+              children: [
+                ListTile(title: const Text('تفاصيل المشكلة'), subtitle: Text(v['details']?.toString() ?? '')),
+                ListTile(title: const Text('رد الإدارة'), subtitle: Text((v['reply']?.toString() ?? '').isEmpty ? 'بانتظار رد الإدارة' : v['reply'].toString())),
+              ],
+            ));
+          }).toList());
+        },
+      ),
+    ]),
+  );
+}
+
+class AdminTickets extends StatelessWidget {
+  const AdminTickets({super.key});
+  @override Widget build(BuildContext context) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    stream: FirebaseFirestore.instance.collection('supportTickets').snapshots(),
+    builder: (context, snap) {
+      if (snap.hasError) return const Text('تعذر تحميل التذاكر');
+      if (!snap.hasData) return const LinearProgressIndicator();
+      if (snap.data!.docs.isEmpty) return const Text('ماكو تذاكر حالياً');
+      final docs = snap.data!.docs.toList()..sort((a,b) {
+        final x = a.data()['createdAt'] as Timestamp?, y = b.data()['createdAt'] as Timestamp?;
+        return (y?.millisecondsSinceEpoch ?? 0).compareTo(x?.millisecondsSinceEpoch ?? 0);
+      });
+      return Column(children: docs.map((d) {
+        final v = d.data();
+        return Card(child: ListTile(
+          title: Text(v['subject']?.toString() ?? ''),
+          subtitle: Text(v['status'] == 'closed' ? 'مغلقة' : 'مفتوحة'),
+          onTap: () => showDialog<void>(context: context, builder: (dialogContext) {
+            final reply = TextEditingController(text: v['reply']?.toString() ?? '');
+            bool sending = false;
+            return StatefulBuilder(builder: (context, setDialogState) => AlertDialog(
+              title: Text(v['subject']?.toString() ?? ''),
+              content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text(v['details']?.toString() ?? ''),
+                const SizedBox(height: 16),
+                TextField(controller: reply, maxLines: 4, maxLength: 2000, decoration: const InputDecoration(labelText: 'رد الإدارة')),
+              ])),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+                TextButton(onPressed: sending ? null : () async {
+                  setDialogState(() => sending = true);
+                  try {
+                    await d.reference.update({'status': 'closed', 'updatedAt': FieldValue.serverTimestamp()});
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
+                  } catch (_) { if (dialogContext.mounted) ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(content: Text('تعذر إغلاق التذكرة'))); }
+                  if (dialogContext.mounted) setDialogState(() => sending = false);
+                }, child: const Text('إغلاق')),
+                FilledButton(onPressed: sending || reply.text.trim().isEmpty ? null : () async {
+                  setDialogState(() => sending = true);
+                  try {
+                    await d.reference.update({'reply': reply.text.trim(), 'status': 'answered', 'updatedAt': FieldValue.serverTimestamp()});
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
+                  } catch (_) { if (dialogContext.mounted) ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(content: Text('تعذر إرسال الرد'))); }
+                  if (dialogContext.mounted) setDialogState(() => sending = false);
+                }, child: const Text('إرسال الرد')),
+              ],
+            ));
+          }),
+        ));
+      }).toList());
+    },
+  );
 }
