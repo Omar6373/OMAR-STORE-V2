@@ -283,6 +283,8 @@ class Details extends StatelessWidget {
         final raw = data['url']?.toString() ?? '';
         final uri = Uri.tryParse(raw);
         if (uri != null && (uri.scheme == 'https' || uri.scheme == 'http')) {
+          await showDownloadAd();
+          if (!context.mounted) return;
           if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح رابط التحميل')));
           }
