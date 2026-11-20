@@ -604,7 +604,7 @@ class AdminTickets extends StatelessWidget {
               content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Text(v['details']?.toString() ?? ''),
                 const SizedBox(height: 16),
-                TextField(controller: reply, maxLines: 4, maxLength: 2000, decoration: const InputDecoration(labelText: 'رد الإدارة')),
+                TextField(controller: reply, maxLines: 4, maxLength: 2000, onChanged: (_) => setDialogState(() {}), decoration: const InputDecoration(labelText: 'رد الإدارة')),
               ])),
               actions: [
                 TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
