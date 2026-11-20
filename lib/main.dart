@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:startapp_sdk/startapp.dart';
+import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -212,6 +214,7 @@ class _CatalogState extends State<Catalog> {
           ),
         ),
       ])),
+      const StartIoBanner(),
       Expanded(child: Firebase.apps.isEmpty
         ? const Center(child: Text('يجب ربط Firebase لعرض المنشورات'))
         : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -268,10 +271,14 @@ class Details extends StatelessWidget {
       const SizedBox(height: 12),
       Text(data['description']?.toString() ?? ''),
       const SizedBox(height: 22),
+      const StartIoBanner(),
+      const SizedBox(height: 12),
       FilledButton.icon(icon: const Icon(Icons.download), label: const Text('تحميل'), onPressed: () async {
         final raw = data['url']?.toString() ?? '';
         final uri = Uri.tryParse(raw);
         if (uri != null && (uri.scheme == 'https' || uri.scheme == 'http')) {
+          await showDownloadAd();
+          if (!context.mounted) return;
           if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح رابط التحميل')));
           }
@@ -384,5 +391,47 @@ class _AdminState extends State<Admin> {
         ],
       ]),
     );
+  }
+}
+
+class StartIoBanner extends StatefulWidget {
+  const StartIoBanner({super.key});
+  @override State<StartIoBanner> createState() => _StartIoBannerState();
+}
+class _StartIoBannerState extends State<StartIoBanner> {
+  final sdk = StartAppSdk();
+  StartAppBannerAd? banner;
+  @override void initState() {
+    super.initState();
+    sdk.loadBannerAd(StartAppBannerType.BANNER).then((ad) {
+      if (mounted) setState(() => banner = ad);
+    }).catchError((Object error) {
+      debugPrint('Start.io test banner unavailable: $error');
+    });
+  }
+  @override Widget build(BuildContext context) => banner == null
+    ? const SizedBox.shrink()
+    : SizedBox(height: 55, child: Center(child: StartAppBanner(banner!)));
+}
+
+/// Show an interstitial at the download transition; network controls its close button.
+Future<void> showDownloadAd() async {
+  final sdk = StartAppSdk();
+  StartAppInterstitialAd? ad;
+  final closed = Completer<void>();
+  void finish() {
+    if (!closed.isCompleted) closed.complete();
+  }
+  try {
+    ad = await sdk.loadInterstitialAd(
+      onAdHidden: finish,
+      onAdNotDisplayed: finish,
+    ).timeout(const Duration(seconds: 12));
+    final shown = await ad.show().timeout(const Duration(seconds: 12));
+    if (shown) await closed.future.timeout(const Duration(minutes: 2));
+  } catch (error) {
+    debugPrint('Start.io interstitial unavailable: $error');
+  } finally {
+    ad?.dispose();
   }
 }
