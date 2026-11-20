@@ -92,6 +92,25 @@ jobs:
           echo "FIREBASE_SENDER_ID=$(jq -r '.project_info.project_number' firebase/google-services.json)" >> "$GITHUB_ENV"
           echo "FIREBASE_PROJECT_ID=$(jq -r '.project_info.project_id' firebase/google-services.json)" >> "$GITHUB_ENV"
           echo "FIREBASE_STORAGE_BUCKET=$(jq -r '.project_info.storage_bucket' firebase/google-services.json)" >> "$GITHUB_ENV"
+      - name: Configure Gradle dependency mirrors
+        run: |
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/init.gradle <<'EOF'
+          settingsEvaluated { settings ->
+            settings.pluginManagement.repositories {
+              mavenCentral()
+              google()
+              gradlePluginPortal()
+            }
+          }
+          allprojects {
+            buildscript.repositories {
+              mavenCentral()
+              google()
+              gradlePluginPortal()
+            }
+          }
+          EOF
       - name: Build release APK
         run: |
           flutter build apk --release \
