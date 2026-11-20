@@ -2,7 +2,7 @@ name: Build OMAR STORE V2 APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, ratings-comments-test, support-tickets-test]
+    branches: [main, ratings-comments-test, support-tickets-test, startio-ads-test]
 permissions:
   contents: write
 concurrency:
@@ -52,6 +52,19 @@ jobs:
               s = s.replace('<application', permission + '\n    <application', 1)
           import re
           s = re.sub(r'android:label="[^"]*"', 'android:label="OMAR STORE"', s, count=1)
+          p.write_text(s)
+          PY
+      - name: Configure Start.io test ads
+        if: github.ref == 'refs/heads/startio-ads-test'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          meta = '''<meta-data android:name="com.startapp.sdk.APPLICATION_ID" android:value="210952444" />
+          <meta-data android:name="com.startapp.sdk.RETURN_ADS_ENABLED" android:value="false" />'''
+          s = s.replace('<application', '<application', 1)
+          s = s.replace('</application>', meta + '\\n    </application>', 1)
           p.write_text(s)
           PY
       - name: Install dependencies
@@ -126,4 +139,21 @@ jobs:
               --notes "نسخة تجريبية لتذاكر الدعم والتقييمات. تحتاج قواعد Firestore للتذاكر."
           else
             gh release upload support-test OMAR-STORE-SUPPORT-TEST.apk --clobber --repo "$GITHUB_REPOSITORY"
+          fi
+
+      - name: Publish Start.io test APK direct download
+        if: github.ref == 'refs/heads/startio-ads-test'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk OMAR-STORE-ADS-TEST.apk
+          if ! gh release view ads-test --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create ads-test OMAR-STORE-ADS-TEST.apk \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --prerelease \
+              --title "OMAR STORE Start.io Test Ads" \
+              --notes "نسخة اختبار إعلانات Start.io. الإعلانات في وضع الاختبار ولا تحقق أرباحاً."
+          else
+            gh release upload ads-test OMAR-STORE-ADS-TEST.apk --clobber --repo "$GITHUB_REPOSITORY"
           fi
