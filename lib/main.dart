@@ -645,7 +645,8 @@ class _StartIoBannerState extends State<StartIoBanner> {
     sdk.loadBannerAd(StartAppBannerType.BANNER).then((ad) {
       if (mounted) setState(() => banner = ad);
     }).catchError((Object error) {
-      debugPrint('Start.io test banner unavailable: $error');
+      debugPrint('STARTIO_DIAGNOSTIC banner load failed: $error');
+      if (mounted) ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text('Start.io banner: $error'), duration: const Duration(seconds: 12)));
     });
   }
   @override Widget build(BuildContext context) => banner == null
@@ -667,9 +668,10 @@ Future<void> showDownloadAd() async {
       onAdNotDisplayed: finish,
     ).timeout(const Duration(seconds: 12));
     final shown = await ad.show().timeout(const Duration(seconds: 12));
+    debugPrint('STARTIO_DIAGNOSTIC interstitial shown=$shown');
     if (shown) await closed.future.timeout(const Duration(minutes: 2));
   } catch (error) {
-    debugPrint('Start.io interstitial unavailable: $error');
+    debugPrint('STARTIO_DIAGNOSTIC interstitial failed: $error');
   } finally {
     ad?.dispose();
   }
