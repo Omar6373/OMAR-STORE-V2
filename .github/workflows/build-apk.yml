@@ -19,8 +19,8 @@ jobs:
       - name: Prepare intro video asset
         run: |
           mkdir -p assets
-          curl -fL --retry 3 -o assets/intro.mp4 https://raw.githubusercontent.com/Omar6373/omar/dfb9c333/OMAR_GAMING_no_capcut.mp4
-          curl -fL --retry 3 -o assets/welcome.png https://raw.githubusercontent.com/Omar6373/omar/dfb9c333/file_00000000f0bc82108c6710992070709a.png
+          curl -fL --retry 3 -o assets/intro.mp4 https://raw.githubusercontent.com/Omar6373/OMAR-STORE-V2/main/omar_logo_no_capcut.mp4
+          curl -fL --retry 3 -o assets/welcome.png https://raw.githubusercontent.com/Omar6373/OMAR-STORE-V2/main/file_00000000ea9881f4bc6615e27a4436db.png
       - name: Generate welcome entry chime
         run: |
           mkdir -p assets/sounds
@@ -47,7 +47,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           from PIL import Image
-          source = Path('file_000000002ca8821084a6946ccedb7762.png')
+          source = Path('file_0000000056c081f496e56264005a2336.png')
           if not source.is_file():
               raise SystemExit('OS icon image missing from repository')
           image = Image.open(source).convert('RGBA')
