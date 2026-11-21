@@ -141,3 +141,15 @@ jobs:
           else
             gh release upload v2.0.0 OMAR-STORE-V2.apk --clobber --repo "$GITHUB_REPOSITORY"
           fi
+
+      - name: Publish diagnostic APK direct download
+        if: github.ref == 'refs/heads/startio-diagnostics'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk OMAR-STORE-DIAGNOSTIC.apk
+          if ! gh release view startio-diagnostics --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create startio-diagnostics OMAR-STORE-DIAGNOSTIC.apk --target "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY" --title "OMAR STORE Diagnostics" --notes "Diagnostic test APK; does not replace production release."
+          else
+            gh release upload startio-diagnostics OMAR-STORE-DIAGNOSTIC.apk --clobber --repo "$GITHUB_REPOSITORY"
+          fi
