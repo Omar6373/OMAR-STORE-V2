@@ -436,9 +436,15 @@ class _AdminState extends State<Admin> {
         if (jpeg.length > 240000) throw Exception('حجم الغلاف كبير، اختر صورة أصغر');
         imageBase64 = base64Encode(jpeg);
       }
-      await FirebaseFirestore.instance.collection('posts').add({
+      // Reserve the Firestore ID first so the public game page is stable.
+      // Store the original MediaFire URL separately for the final download.
+      final originalUrl = url.text.trim();
+      final postRef = FirebaseFirestore.instance.collection('posts').doc();
+      final websiteUrl = 'https://omar6373.github.io/game.html?id=${postRef.id}';
+      await postRef.set({
         'title': title.text.trim(), 'description': description.text.trim(),
-        'url': url.text.trim(), 'type': type, 'imageBase64': imageBase64,
+        'url': websiteUrl, 'originalDownloadUrl': originalUrl,
+        'type': type, 'imageBase64': imageBase64,
         'createdAt': FieldValue.serverTimestamp(),
       });
       title.clear(); description.clear(); url.clear();
